@@ -6,13 +6,13 @@
 // }
 // の形で設定しておく
 
-// TODO: ファイルの期限切れ確認
-
 const run = ()=>{
-  // const today = Utilities.formatDate( new Date(), 'Asia/Tokyo', 'yyyy/MM/dd')
-  // postToSlack(`${today}`)
-  const files = getFiles()
+  const files = getOldFiles()
   deleteFiles(files)
+
+  const date = new Date();
+  date.setFullYear(date.getFullYear()-1)
+  postToSlack(`${Utilities.formatDate(date, 'JST', 'yyyy-MM-dd')} までのファイルをおそうじしたよ～`)
 }
 
 const postToSlack = (text) => {
@@ -29,21 +29,30 @@ const postToSlack = (text) => {
   UrlFetchApp.fetch(getIncomingWebhookUrl(), options)
 }
 
-const getFiles = () => {
-   const options =
+const getOldFiles = () => {
+  //1年前以前のファイルが対象
+  const timestamp = elapsedDaysToUnixTime(365)
+
+  const options =
     {
       "method" : "post",
       "contentType" : "application/json",
       "headers": {"Authorization": `Bearer ${getUserOauthToken()}`}
     }
-  const raw = UrlFetchApp.fetch(`https://slack.com/api/files.list?count=2&user=U010KCQJ1N3`, options).getContentText()
-  const { files } = JSON.parse(raw) 
-  return files
+
+  try{
+    // 1ヶ月に1000件以上あればcount=1000じゃ対応できないが、小さなコミュニティだったらこれで事足りる
+    const raw = UrlFetchApp.fetch(`https://slack.com/api/files.list?count=1000&ts_to=${timestamp}`, options).getContentText()
+    const { files } = JSON.parse(raw)
+    return files
+  }
+  catch(e){
+    Logger.log(e)
+  }
 }
 
 const deleteFiles = (files) => {
   files.forEach(file => {
-    Logger.log(file.id)
     const options =
     {
       "method" : "post",
@@ -55,8 +64,12 @@ const deleteFiles = (files) => {
       }
     )
     }
-    const result = UrlFetchApp.fetch(`https://slack.com/api/files.delete`, options)
-    Logger.log(result)
+    try {
+      const result = UrlFetchApp.fetch(`https://slack.com/api/files.delete`, options)
+      Logger.log(`${file.id} ${result}`)
+    } catch (e) {
+      Logger.log(e)
+    }
   })
 }
 
@@ -68,6 +81,12 @@ const getIncomingWebhookUrl = ()=> {
 const getUserOauthToken = ()=> {
   const scriptProperties = PropertiesService.getScriptProperties()
   return scriptProperties.getProperty('user_oauth_token')
+}
+
+const elapsedDaysToUnixTime = (days) => {  
+  var date = new Date();
+  var now = Math.floor(date.getTime()/ 1000); // unixtime[sec]
+  return now - 8.64e4 * days + '' // 8.64e4[sec] = 1[day] 文字列じゃないと動かないので型変換している
 }
 
 
