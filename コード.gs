@@ -1,17 +1,18 @@
 // 事前準備
 // スクリプトプロパティに
 // {
-//   https://xxxx.slack.com/の部分
 //   slack_incoming_webhook:  'https://hooks.slack.com/services/xxxxxx'
 //   user_oauth_token: 'xoxp-xxxxxxxx'
 // }
 // の形で設定しておく
 
-// TODO: ファイルリストの取得、ファイルの削除、ファイルの期限切れ確認
+// TODO: ファイルの期限切れ確認
 
 const run = ()=>{
-  const today = Utilities.formatDate( new Date(), 'Asia/Tokyo', 'yyyy/MM/dd')
-  postToSlack(`${today}`)
+  // const today = Utilities.formatDate( new Date(), 'Asia/Tokyo', 'yyyy/MM/dd')
+  // postToSlack(`${today}`)
+  const files = getFiles()
+  deleteFiles(files)
 }
 
 const postToSlack = (text) => {
@@ -35,7 +36,28 @@ const getFiles = () => {
       "contentType" : "application/json",
       "headers": {"Authorization": `Bearer ${getUserOauthToken()}`}
     }
-  const result = UrlFetchApp.fetch(`https://slack.com/api/files.list`, options)
+  const raw = UrlFetchApp.fetch(`https://slack.com/api/files.list?count=2&user=U010KCQJ1N3`, options).getContentText()
+  const { files } = JSON.parse(raw) 
+  return files
+}
+
+const deleteFiles = (files) => {
+  files.forEach(file => {
+    Logger.log(file.id)
+    const options =
+    {
+      "method" : "post",
+      "contentType" : "application/json; charset=utf-8",
+      "headers": {"Authorization": `Bearer ${getUserOauthToken()}`},
+      "payload" : JSON.stringify(
+      {
+        "file" : file.id
+      }
+    )
+    }
+    const result = UrlFetchApp.fetch(`https://slack.com/api/files.delete`, options)
+    Logger.log(result)
+  })
 }
 
 const getIncomingWebhookUrl = ()=> {
@@ -56,5 +78,5 @@ const registScriptProperty = () =>{
   const scriptProperties = PropertiesService.getScriptProperties()
   scriptProperties.setProperty(key, value)
   const result = scriptProperties.getProperty(key)
-  Logger.log(result)
+  Logger.log(scriptProperties)
 }
